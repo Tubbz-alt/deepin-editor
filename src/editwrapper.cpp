@@ -606,9 +606,11 @@ void EditWrapper::checkForReload()
 
     if (fi.exists() && fi.lastModified() != m_modified) {
         m_waringNotices->setMessage(tr("File has changed on disk. Reload?"));
+        QMessageBox::information(m_textEdit,tr("File has changed on disk. Reload?"),"yes","no");
         m_waringNotices->setReloadBtn();
     } else {
         m_waringNotices->setMessage(tr("File removed on the disk. Save it now?"));
+        QMessageBox::information(m_textEdit,tr("File removed on the disk. Save it now?"),"yes","no");
         m_waringNotices->setSaveAsBtn();
     }
 
