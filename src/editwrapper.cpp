@@ -45,7 +45,7 @@ EditWrapper::EditWrapper(QWidget *parent)
       m_endOfLineMode(eolUnix),
       m_isLoadFinished(true),
       m_isRefreshing(false),
-      m_waringNotices(new WarningNotices)
+      m_waringNotices(new WarningNotices(WarningNotices::ResidentType,this))
 {
     // Init layout and widgets.
     m_layout->setContentsMargins(0, 0, 0, 0);
@@ -606,11 +606,9 @@ void EditWrapper::checkForReload()
 
     if (fi.exists() && fi.lastModified() != m_modified) {
         m_waringNotices->setMessage(tr("File has changed on disk. Reload?"));
-        QMessageBox::information(m_textEdit,tr("File has changed on disk. Reload?"),"yes","no");
         m_waringNotices->setReloadBtn();
     } else {
         m_waringNotices->setMessage(tr("File removed on the disk. Save it now?"));
-        QMessageBox::information(m_textEdit,tr("File removed on the disk. Save it now?"),"yes","no");
         m_waringNotices->setSaveAsBtn();
     }
 
