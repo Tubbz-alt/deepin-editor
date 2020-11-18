@@ -783,6 +783,7 @@ void Window::removeWrapper(const QString &filePath, bool isDelete)
 void Window::openFile()
 {
     QFileDialog dialog(this);
+    Dtk::Widget::moveToCenter(&dialog);
     dialog.setFileMode(QFileDialog::ExistingFiles);
     dialog.setAcceptMode(QFileDialog::AcceptOpen);
 
@@ -916,10 +917,7 @@ QString Window::saveAsFileToDisk()
 {
     QString filePath = m_tabbar->currentPath();
     EditWrapper *wrapper = m_wrappers.value(filePath);
-    qDebug()<<"=========saveAsFileToDisk :filePath"<<filePath;
-    qDebug()<<"=========EditWrapper :"<<wrapper;
     bool isDraft = Utils::isDraftFile(filePath);
-    qDebug()<<"=========isDraftFile :"<<isDraft;
     QFileInfo fileInfo(filePath);
 
     if (!wrapper)
@@ -927,6 +925,7 @@ QString Window::saveAsFileToDisk()
         return QString();
 
     DFileDialog dialog(this, tr("Save File"));
+    Dtk::Widget::moveToCenter(&dialog);
     dialog.setAcceptMode(QFileDialog::AcceptSave);
     dialog.addComboBox(tr("Encoding"), Utils::getEncodeList());
     dialog.addComboBox(tr("Line Endings"), QStringList() << "Linux" << "Windows" << "Mac OS");
