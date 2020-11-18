@@ -1,4 +1,4 @@
- /* -*- Mode: C++; indent-tabs-mode: nil; tab-width: 4 -*-
+﻿ /* -*- Mode: C++; indent-tabs-mode: nil; tab-width: 4 -*-
  * -*- coding: utf-8 -*-
  *
  * Copyright (C) 2011 ~ 2018 Deepin, Inc.
@@ -33,46 +33,140 @@
 #include <QAction>
 #include <DMenu>
 #include <QPaintEvent>
-#include <DTextEdit>
+#include <DPlainTextEdit>
 #include <QLineEdit>
 #include <QPropertyAnimation>
 #include <QFont>
 #include <DApplicationHelper>
+#include <QtDBus>
+#include <QGestureEvent>
 #include <QProxyStyle>
+#include "widgets/ColorSelectWdg.h"
+#include <DTextEdit>
+
+#define CELL_TIME   15
+#define TAP_MOVE_DELAY 300
 
 namespace KSyntaxHighlighting {
     class SyntaxHighlighter;
 }
 
-const QString STYLE_COLOR_1 = "#FFA503";
-const QString STYLE_COLOR_2 = "#FF1C49";
-const QString STYLE_COLOR_3 = "#9023FC";
-const QString STYLE_COLOR_4 = "#05EA6B";
+const QString SELECT_HIGHLIGHT_COLOR = "#2CA7F8";
 
 enum ConvertCase { UPPER, LOWER, CAPITALIZE };
+
+// Tween算法(模拟惯性)
+typedef std::function<void (qreal)> FunSlideInertial;
+class FlashTween : public QObject
+{
+    Q_OBJECT
+public:
+    FlashTween();
+    ~FlashTween(){}
+
+public:
+    void startX(qreal t,qreal b,qreal c,qreal d, FunSlideInertial fSlideGesture);
+    void startY(qreal t,qreal b,qreal c,qreal d, FunSlideInertial fSlideGesture);
+    void stopX(){m_timerX->stop();}
+    void stopY(){m_timerY->stop();}
+    bool activeX(){return m_timerX->isActive();}
+    bool activeY(){return m_timerY->isActive();}
+
+private slots:
+    void __runY();
+    void __runX();
+
+private:
+    QTimer* m_timerY = nullptr;
+    QTimer* m_timerX = nullptr;
+    FunSlideInertial m_fSlideGestureX = nullptr;
+    FunSlideInertial m_fSlideGestureY = nullptr;
+
+    //纵向单指惯性滑动
+    qreal m_currentTimeY = 0;
+    qreal m_beginValueY = 0;
+    qreal m_changeValueY = 0;
+    qreal m_durationTimeY = 0;
+    qreal m_directionY = 1;
+    qreal m_lastValueY = 0;
+
+    qreal m_currentTimeX = 0;
+    qreal m_beginValueX = 0;
+    qreal m_changeValueX = 0;
+    qreal m_durationTimeX = 0;
+    qreal m_directionX = 1;
+    qreal m_lastValueX = 0;
+
+private:
+    /**
+    链接:https://www.cnblogs.com/cloudgamer/archive/2009/01/06/Tween.html
+    效果说明
+        Linear：无缓动效果；
+        Quadratic：二次方的缓动（t^2）；
+        Cubic：三次方的缓动（t^3）；
+        Quartic：四次方的缓动（t^4）；
+        Quintic：五次方的缓动（t^5）；
+        Sinusoidal：正弦曲线的缓动（sin(t)）；
+        Exponential：指数曲线的缓动（2^t）；
+        Circular：圆形曲线的缓动（sqrt(1-t^2)）；
+        Elastic：指数衰减的正弦曲线缓动；
+        Back：超过范围的三次方缓动（(s+1)*t^3 - s*t^2）；
+        Bounce：指数衰减的反弹缓动。
+    每个效果都分三个缓动方式（方法），分别是：
+        easeIn：从0开始加速的缓动；
+        easeOut：减速到0的缓动；
+        easeInOut：前半段从0开始加速，后半段减速到0的缓动。
+        其中Linear是无缓动效果，没有以上效果。
+    四个参数分别是：
+        t: current time（当前时间）；
+        b: beginning value（初始值）；
+        c: change in value（变化量）；
+        d: duration（持续时间）。
+    */
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wsequence-point"
+    static qreal quadraticEaseOut(qreal t,qreal b,qreal c,qreal d){
+        return -c *(t/=d)*(t-2) + b;
+    }
+
+    static qreal cubicEaseOut(qreal t,qreal b,qreal c,qreal d){
+        return c*((t=t/d-1)*t*t + 1) + b;
+    }
+
+    static qreal quarticEaseOut(qreal t,qreal b,qreal c,qreal d){
+        return -c * ((t=t/d-1)*t*t*t - 1) + b;
+    }
+
+    static qreal quinticEaseOut(qreal t,qreal b,qreal c,qreal d){
+        return c*((t=t/d-1)*t*t*t*t + 1) + b;
+    }
+
+    static qreal sinusoidalEaseOut(qreal t,qreal b,qreal c,qreal d){
+        return c * sin(t/d * (3.14/2)) + b;
+    }
+
+    static qreal circularEaseOut(qreal t,qreal b,qreal c,qreal d){
+        return c * sqrt(1 - (t=t/d-1)*t) + b;
+    }
+
+    static qreal bounceEaseOut(qreal t,qreal b,qreal c,qreal d){
+        if ((t/=d) < (1/2.75)) {
+            return c*(7.5625*t*t) + b;
+        } else if (t < (2/2.75)) {
+            return c*(7.5625*(t-=(1.5/2.75))*t + .75) + b;
+        } else if (t < (2.5/2.75)) {
+            return c*(7.5625*(t-=(2.25/2.75))*t + .9375) + b;
+        } else {
+            return c*(7.5625*(t-=(2.625/2.75))*t + .984375) + b;
+        }
+    }
+    #pragma GCC diagnostic pop
+};
 
 class ShowFlodCodeWidget;
 class leftareaoftextedit;
 class EditWrapper;
-
-class CustomLineEditProxyStyle : public QProxyStyle
-{
-    Q_OBJECT
-public:
-    CustomLineEditProxyStyle() : QProxyStyle() {}
-    ~CustomLineEditProxyStyle() {}
-    virtual int pixelMetric(PixelMetric metric, const QStyleOption* option = nullptr, const QWidget* widget = nullptr) const
-    {
-        if (metric == QStyle::PM_TextCursorWidth) {
-            qDebug() << "metric == QStyle::PM_TextCursorWidth";
-            return 0;
-        }
-
-        return QProxyStyle::pixelMetric(metric, option, widget);
-    }
-};
-
-class TextEdit : public DTextEdit
+class TextEdit : public DPlainTextEdit
 {
     Q_OBJECT
 
@@ -85,13 +179,9 @@ public:
 
     TextEdit(QWidget *parent = nullptr);
     ~TextEdit() override;
-
-    LineNumberArea *lineNumberArea;
-    leftareaoftextedit *m_pLeftAreaWidget;
-    QString filepath;
-
+	
+	
     void setWrapper(EditWrapper *);
-
     int lineNumberAreaWidth();
 
     int getCurrentLine();
@@ -133,6 +223,10 @@ public:
     void duplicateLine();
     void copyLines();
     void cutlines();
+
+    /**
+     * @brief joinLines 合并行
+     */
     void joinLines();
 
     void killLine();
@@ -173,6 +267,7 @@ public:
 
     void lineNumberAreaPaintEvent(QPaintEvent *event);
     void codeFLodAreaPaintEvent(QPaintEvent *event);
+    void setBookmarkFlagVisable(bool isVisable,bool bIsFirstOpen = false);
     void setCodeFlodFlagVisable(bool isVisable,bool bIsFirstOpen = false);
     void setThemeWithPath(const QString &path);
     void setTheme(const KSyntaxHighlighting::Theme &theme, const QString &path);
@@ -223,35 +318,179 @@ public:
     bool isNeedShowFoldIcon(QTextBlock block);
     int  getHighLightRowContentLineNum(int iLine);
     int  getLinePosByLineNum(int iLine);
+    bool ifHasHighlight();
 
     //书签功能相关
+    /**
+     * @author liumaochuan ut000616
+     * @brief bookMarkAreaPaintEvent 绘制书签
+     * @param event 书签区域的绘制事件
+     */
     void bookMarkAreaPaintEvent(QPaintEvent *event);
+
+    /**
+     * @author liumaochuan ut000616
+     * @brief getLineFromPoint 得到鼠标点击位置所在的行
+     * @param point 鼠标点击位置
+     * @return 鼠标点击位置所在的行
+     */
     int getLineFromPoint(const QPoint &point);
+
+    /**
+     * @author liumaochuan ut000616
+     * @brief addOrDeleteBookMark 添加或删除书签
+     */
     void addOrDeleteBookMark();
+
+    /**
+     * @author liumaochuan ut000616
+     * @brief moveToPreviousBookMark 移动到上一个书签
+     */
     void moveToPreviousBookMark();
+
+    /**
+     * @author liumaochuan ut000616
+     * @brief moveToNextBookMark 移动到下一个书签
+     */
     void moveToNextBookMark();
+
+    /**
+     * @author liumaochuan ut000616
+     * @brief checkBookmarkLineMove 检测书签行移动
+     * @param from 文本变化时光标位置
+     * @param charsRemoved 移除的字符数
+     * @param charsAdded 添加的字符数
+     */
     void checkBookmarkLineMove(int from, int charsRemoved, int charsAdded);
+
+    /**
+     * @author liumaochuan ut000616
+     * @brief setIsFileOpen 设置是否在读取文件
+     */
     void setIsFileOpen();
+
+    /**
+     * @author liumaochuan ut000616
+     * @brief setTextFinished 读取文件结束
+     */
     void setTextFinished();
+
+    /**
+     * @author liumaochuan ut000616
+     * @brief readHistoryRecord 读取书签相关记录
+     * @return 书签相关记录列表
+     */
     QStringList readHistoryRecord(QString key);
+
+    /**
+     * @author liumaochuan ut000616
+     * @brief readHistoryRecordofBookmark 读取书签记录
+     * @return 书签记录列表
+     */
     QStringList readHistoryRecordofBookmark();
+
+    /**
+     * @author liumaochuan ut000616
+     * @brief readHistoryRecordofFilePath 读取添加了书签的文件路径记录
+     * @return 文件路径列表
+     */
     QStringList readHistoryRecordofFilePath(QString key);
+
+    /**
+     * @author liumaochuan ut000616
+     * @brief writeHistoryRecord 写入书签相关记录
+     */
     void writeHistoryRecord();
 
+    //标记功能相关
+    /**
+     * @author liumaochuan ut000616
+     * @brief isMarkCurrentLine 标记或取消标记当前行
+     * @param isMark true为标记，false为取消标记
+     * @param strColor 标记格式
+     */
     void isMarkCurrentLine(bool isMark, QString strColor = "");
-    void isMarkAllLine(bool isMark, QString strColor = "");
-    void cancelLastMark();
-    void markSelectWord();
-    void updateMark(int from, int charsRemoved, int charsAdded);
-    void setCursorStart(int _);
 
+    /**
+     * @author liumaochuan ut000616
+     * @brief isMarkAllLine 标记或取消标记所有
+     * @param isMark true为标记，false为取消标记
+     * @param strColor 标记格式
+     */
+    void isMarkAllLine(bool isMark, QString strColor = "");
+
+    /**
+     * @author liumaochuan ut000616
+     * @brief cancelLastMark 取消上一个标记
+     */
+    void cancelLastMark();
+
+    /**
+     * @brief markSelectWord 标记选择的文本
+     */
+    void markSelectWord();
+
+    /**
+     * @author liumaochuan ut000616
+     * @brief updateMark 更新标记
+     * @param from 文本变化时光标位置
+     * @param charsRemoved 移除的字符数
+     * @param charsAdded 添加的字符数
+     */
+    void updateMark(int from, int charsRemoved, int charsAdded);
+
+    //QTextEdit :: ExtraSelection结构提供了一种为文档中的给定选择,指定字符格式的方法。
+    /**
+     * @author liumaochuan ut000616
+     * @brief containsExtraSelection 指定字符格式列表是否包含该指定字符格式
+     * @param listSelections 指定字符格式列表
+     * @param selection 指定字符格式
+     * @return true or false
+     */
+    bool containsExtraSelection(QList<QTextEdit::ExtraSelection> listSelections, QTextEdit::ExtraSelection selection);
+
+    /**
+     * @author liumaochuan ut000616
+     * @brief appendExtraSelection 在指定字符格式列表添加指定字符格式
+     * @param wordMarkSelections 指定字符格式列表
+     * @param selection 指定字符格式
+     * @param markColor 指定字符颜色格式
+     * @param listSelections 添加的指定字符格式列表
+     */
+    void appendExtraSelection(QList<QTextEdit::ExtraSelection> wordMarkSelections, QTextEdit::ExtraSelection selection
+                              , QString strColor, QList<QTextEdit::ExtraSelection> *listSelections);
+
+    void setCursorStart(int _);
     void setTextCode(QString encode);
     void writeEncodeHistoryRecord();
     QStringList readEncodeHistoryRecord();
+    void columnCopy();
+    void columnPaste();
+    void columnCut();
+    void columnDelete();
+    void columnUndo();
+    void columnRedo();
 
-public:
-    bool bIsSetLineNumberWidth = true;
-    bool m_pIsShowCodeFoldArea;
+    /**
+     * @brief tellFindBarClose 通知查找框关闭
+     */
+    void tellFindBarClose();
+
+    /**
+     * @author liumaochuan ut000616
+     * @brief setEditPalette 设置textEdit的颜色
+     * @param activeColor active时的颜色
+     * @param inactiveColor inactive时的颜色
+     */
+    void setEditPalette(const QString &activeColor, const QString &inactiveColor);
+
+    /**
+     * @author liumaochuan ut000616
+     * @brief setCodeFoldWidgetHide 代码折叠悬浮预览
+     * @param isHidden 是否隐藏
+     */
+    void setCodeFoldWidgetHide(bool isHidden);
+
 signals:
     void clickFindAction();
     void clickReplaceAction();
@@ -267,8 +506,11 @@ signals:
 
     void signal_clearBlack();
     void signal_setTitleFocus();
+    void toTellInputModEdit(QString input);
 
 public slots:
+    //更新左边区域界面　梁卫东　２０２０－０９－０９　１３：５３：５８
+    void updateLeftAreaWidget();
     void highlightCurrentLine();
     void updateLineNumber();
     void updateWordCount();
@@ -303,52 +545,68 @@ public slots:
     void handleCursorMarkChanged(bool mark, QTextCursor cursor);
 
     void adjustScrollbarMargins();
-    bool containsExtraSelection(QList<QTextEdit::ExtraSelection> listSelections, QTextEdit::ExtraSelection selection);
-    void appendExtraSelection(QList<QTextEdit::ExtraSelection> wordMarkSelections
-                              ,QTextEdit::ExtraSelection selection,QString strColor
-                              ,QList<QTextEdit::ExtraSelection> *listSelections);
     void onSelectionArea();
-    void onFocusChanged(QWidget *old, QWidget *now);
-    void onTimeout();
-    void onCursorFlashTimeChanged(int msec);
+    void fingerZoom(QString name, QString direction, int fingers);
+    void onInputModEdit(QString input);
 
 protected:
+    bool event(QEvent* evt) override;   //触摸屏event事件
+
     void dragEnterEvent(QDragEnterEvent *event) override;
     void dragMoveEvent(QDragMoveEvent *event) override;
     void dropEvent(QDropEvent *event) override;
     void inputMethodEvent(QInputMethodEvent *e) override;
-    QVariant inputMethodQuery(Qt::InputMethodQuery query) const override;
 
     void mousePressEvent(QMouseEvent *e) override;
-    void mouseReleaseEvent(QMouseEvent *e) override;
     void mouseMoveEvent(QMouseEvent *e) override;
+    void mouseReleaseEvent(QMouseEvent *e) override;
     void keyPressEvent(QKeyEvent *e) override;
     void wheelEvent(QWheelEvent *e) override;
     bool eventFilter(QObject *object, QEvent *event) override;
     void contextMenuEvent(QContextMenuEvent *event) override;
     void paintEvent(QPaintEvent *e) override;
+    void focusOutEvent(QFocusEvent *e) override;
+    void focusInEvent(QFocusEvent *e) override;
 
 private:
+    //去除"*{*" "*}*" "*{*}*"跳过当做普通文本处理不折叠　梁卫东２０２０－０９－０１　１７：１６：４１
+    bool blockContainStrBrackets(int line);
     bool setCursorKeywordSeletoin(int position, bool findNext);
     void cursorPositionChanged();
     void updateHighlightBrackets(const QChar &openChar, const QChar &closeChar);
     int getFirstVisibleBlockId() const;
     void getNeedControlLine(int line, bool isVisable);
 
+    //触摸屏功能函数
+    bool gestureEvent(QGestureEvent *event);
+    void tapGestureTriggered(QTapGesture*);
+    void tapAndHoldGestureTriggered(QTapAndHoldGesture*);
+    void panTriggered(QPanGesture*);
+    void pinchTriggered(QPinchGesture*);
+    void swipeTriggered(QSwipeGesture*);
+	
+	//add for single refers to the sliding
+    void slideGestureY(qreal diff);
+    void slideGestureX(qreal diff);
+
+public:
+    bool bIsSetLineNumberWidth = true;
+    bool m_pIsShowCodeFoldArea;
+    bool m_pIsShowBookmarkArea;
+
 private:
     EditWrapper *m_wrapper;
     QPropertyAnimation *m_scrollAnimation;
 
-    QList<QTextEdit::ExtraSelection> m_altModSelections;
-    QList<QTextEdit::ExtraSelection> m_findMatchSelections;
+    QList<QTextEdit::ExtraSelection> m_findMatchSelections;///< “查找”的字符格式（所有查找的字符）
     QTextEdit::ExtraSelection m_beginBracketSelection;
     QTextEdit::ExtraSelection m_endBracketSelection;
     QTextEdit::ExtraSelection m_currentLineSelection;
-    QTextEdit::ExtraSelection m_findHighlightSelection;
+    QTextEdit::ExtraSelection m_findHighlightSelection;///< “查找”的字符格式（当前位置字符）
     QTextEdit::ExtraSelection m_wordUnderCursorSelection;
-    QList<QTextEdit::ExtraSelection> m_wordMarkSelections;
-    QMap<int,QList<QTextEdit::ExtraSelection>> m_mapWordMarkSelections;
-    QTextEdit::ExtraSelection m_markAllSelection;
+    QList<QTextEdit::ExtraSelection> m_wordMarkSelections;///< 记录标记的列表（分行记录）
+    QMap<int,QList<QTextEdit::ExtraSelection>> m_mapWordMarkSelections;///< 记录标记的表（按标记动作记录）
+    QTextEdit::ExtraSelection m_markAllSelection;///< “标记所有”的字符格式
     QList<QTextEdit::ExtraSelection> m_markFoldHighLightSelections;
 
     QTextCursor m_highlightWordCacheCursor;
@@ -385,6 +643,8 @@ private:
     QAction *m_stopReadingAction;
     QAction *m_dictationAction;
     QAction *m_translateAction;
+    QAction *m_columnEditAction;
+
     QAction *m_addBookMarkAction;
     QAction *m_cancelBookMarkAction;
     QAction *m_clearBookMarkAction;
@@ -400,24 +660,20 @@ private:
  //    QAction *m_colorMarkAction;
     DMenu *m_collapseExpandMenu;
     DMenu *m_colorMarkMenu;
-    DMenu *m_markCurrentLine;
-    DMenu *m_markAllLine;
     QAction *m_cancleMarkCurrentLine;
     QAction *m_cancleMarkAllLine;
     QAction *m_cancleLastMark;
-    QAction *m_actionStyleOne;
-    QAction *m_actionStyleTwo;
-    QAction *m_actionStyleThree;
-    QAction *m_actionStyleFour;
 
-    QAction *m_actionAllStyleOne;
-    QAction *m_actionAllStyleTwo;
-    QAction *m_actionAllStyleThree;
-    QAction *m_actionAllStyleFour;
- //    QAction *m_bookmarkAction;
-     QAction *m_columnEditACtion;
-     QAction *m_addComment;
-     QAction *m_cancelComment;
+    //颜色选择控件替换下面action 1 2 3 4
+    QWidgetAction *m_actionColorStyles;
+    QAction *m_markCurrentAct;
+
+     //颜色选择控件替换下面action 1 2 3 4
+    QWidgetAction *m_actionAllColorStyles;
+    QAction *m_markAllAct;
+
+    QAction *m_addComment;
+    QAction *m_cancelComment;
 
     DMenu *m_convertCaseMenu;
     QAction *m_upcaseAction;
@@ -462,7 +718,7 @@ private:
     QColor m_selectionColor;
     QColor m_selectionBgColor;
 
-    QPoint m_mouseClickPos;
+    QPoint m_mouseClickPos;///< 鼠标点击位置
     QPoint m_menuPos;
 
     bool m_highlighted = false;
@@ -479,36 +735,80 @@ private:
     QPointer<QTimer> m_updateEnableSelectionByMouseTimer;
     int m_touchTapDistance = -1;
 
-    QFont m_fontLineNumberArea;
-    QList<int> m_listBookmark;
-    int m_nBookMarkHoverLine;
-    int m_nLines;
-    bool m_bIsFileOpen;
-    bool m_bIsShortCut;
+    QFont m_fontLineNumberArea;///< 绘制行号的字体
+    QList<int> m_listBookmark;///< 存储书签的list
+    int m_nBookMarkHoverLine;///< 悬浮效果书签所在的行
+    int m_nLines;///< 文本总行数
+    bool m_bIsFileOpen;///< 是否在读取文件（导致文本变化）
+    bool m_bIsShortCut;///< 是否在使用书签快捷键
 
     //存储所有有折叠标记的位置，包含不可见区域
     QList<int> m_listFlodFlag;
     //包含当前可见区域的标志
     QList<int> m_listFlodIconPos;
 
-    QString m_qstrCommitString;
-    bool m_bIsInputMethod;
-    int m_nSelectEndLine;
-    int m_nSelectStart;
-    int m_nSelectEnd;
+    QString m_qstrCommitString;///< 输入法输入的字符
+    bool m_bIsInputMethod;///< 是否是输入法输入
+    int m_nSelectEndLine;///< 选择结束时后鼠标所在行
+    int m_nSelectStart;///< 选择开始时的鼠标位置
+    int m_nSelectEnd;///< 选择结束时的鼠标位置
 
     int m_cursorStart=-1;
     QString m_textEncode;
-    QPoint m_mouseMoveStart;
-    QPoint m_mouseMoveEnd;
-    bool m_bIsAltMod;
-    QTimer *m_timer;
-    bool m_bIsMousePress;
-    bool m_bIsLinePaint;
-    QList<QPoint> m_listStartPoint;
-    bool m_bIsTimeout;
-    bool m_bIsCursorUpdate = false;
-    CustomLineEditProxyStyle *m_style;
-};
 
+    //触摸屏
+    enum GestureAction{
+        GA_null,
+        GA_tap,
+        GA_slide,
+        GA_pinch,
+        GA_hold,
+        GA_pan,
+        GA_swipe
+    };
+
+    qreal m_scaleFactor = 1;
+    qreal m_currentStepScaleFactor = 1;
+    qint64 m_tapBeginTime = 0;
+    Qt::GestureState m_tapStatus = Qt::NoGesture;
+    GestureAction m_gestureAction = GA_null;
+
+	//add for single refers to the sliding
+    FlashTween tweenX;
+    FlashTween tweenY;
+    qreal changeY = {0.0};
+    qreal changeX = {0.0};
+    qreal durationY = {0.0};
+    qreal durationX = {0.0};
+    bool m_slideContinueX {false};
+    bool m_slideContinueY {false};
+    int m_lastMouseYpos;
+    int m_lastMouseXpos;
+    ulong m_lastMouseTimeX;
+    ulong m_lastMouseTimeY;
+    qreal m_stepSpeedY = 0;
+    qreal m_stepSpeedX = 0;
+    bool m_bIsDoubleClick {false};
+    bool m_bBeforeIsDoubleClick {false};
+
+    QList<QTextEdit::ExtraSelection> m_altModSelections;
+    QTextCursor m_altStartTextCursor;//开始按住alt鼠标点击光标位置
+    QTextCursor m_altEndTextCursor;//结束按住alt鼠标点击光标位置
+    bool m_bIsAltMod=false;
+    int m_redoCount = 0;
+    QStringList m_pastText;
+    bool m_hasColumnSelection= false;
+
+    //鼠标事件的位置
+    int m_startX = 0;
+    int m_startY = 0;
+    int m_endX = 0;
+    int m_endY = 0;
+
+    bool m_bIsFindClose = false;///< 关闭查找框事件是否发生
+
+public:
+    leftareaoftextedit *m_pLeftAreaWidget;
+    QString filepath;
+};
 #endif

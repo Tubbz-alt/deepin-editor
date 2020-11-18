@@ -40,6 +40,8 @@
 #include <DGuiApplicationHelper>
 #include <DMessageManager>
 #include <DGuiApplicationHelper>
+#include <qprintpreviewdialog.h>
+#include<dprintpreviewdialog.h>
 
 DWIDGET_USE_NAMESPACE
 
@@ -51,6 +53,7 @@ public:
     Window(DMainWindow *parent = 0);
     ~Window() override;
 
+    void showCenterWindow(bool bIsCenter);
     void initTitlebar();
     bool checkBlockShutdown();
 
@@ -79,6 +82,7 @@ public:
     QString saveBlankFileToDisk();
     bool saveAsOtherTabFile(EditWrapper *wrapper);
 
+    void changeSettingDialogComboxFontNumber(int fontNumber);
     void decrementFontSize();
     void incrementFontSize();
     void resetFontSize();
@@ -106,6 +110,12 @@ public:
 
     void displayShortcuts();
 
+    void backupFile();
+
+    void addTemFileTab(QString qstrPath,QString qstrName,bool bIsTemFile = false);
+public:
+    //设置显示清除焦点
+    void setChildrenFocus(bool ok);
 signals:
     void themeChanged(const QString themeName);
     void requestDragEnterEvent(QDragEnterEvent *);
@@ -203,6 +213,8 @@ private:
     QString m_themePath;
     QString m_tabbarActiveColor;
     QList <TextEdit *> m_reading_list;
+    QStringList m_qlistTemFile;///<临时文件列表
+    QStringList m_qlistLocFile;///<未修改文件列表
 };
 
 #endif

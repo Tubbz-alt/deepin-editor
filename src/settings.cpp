@@ -19,7 +19,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-
+#include "utils.h"
 #include "settings.h"
 
 #include "dthememanager.h"
@@ -35,8 +35,6 @@
 #include <QDebug>
 #include <QDir>
 #include <QStandardPaths>
-#include <QKeyEvent>
-#include <QTest>
 
 Settings *Settings::m_setting = nullptr;
 Settings::Settings(QWidget *parent)
@@ -67,14 +65,30 @@ Settings::Settings(QWidget *parent)
         emit adjustWordWrap(value.toBool());
     });
 
+    auto showLineNumber = settings->option("base.font.showlinenumber");
+    connect(showLineNumber,&Dtk::Core::DSettingsOption::valueChanged,this,[=] (QVariant value){
+        emit setLineNumberShow(value.toBool());
+    });
+
+    auto bookmark = settings->option("base.font.showbookmark");
+    connect(bookmark, &Dtk::Core::DSettingsOption::valueChanged, this, [=] (QVariant value) {
+        emit adjustBookmark(value.toBool());
+    });
+
     auto codeFlod = settings->option("base.font.codeflod");
     connect(codeFlod, &Dtk::Core::DSettingsOption::valueChanged, this, [ = ](QVariant value) {
         emit showCodeFlodFlag(value.toBool());
     });
 
+    //添加显示空白符　梁卫东
+    auto blankCharacter = settings->option("base.font.showblankcharacter");
+    connect(blankCharacter, &Dtk::Core::DSettingsOption::valueChanged, this, [ = ](QVariant value) {
+        emit showBlankCharacter(value.toBool());
+    });
+
     auto theme = settings->option("advance.editor.theme");
     connect(theme, &Dtk::Core::DSettingsOption::valueChanged, this, [=] (QVariant value) {
-        emit themeChanged(value.toString());
+        //emit themeChanged(value.toString());
     });
 
     auto tabSpaceNumber = settings->option("advance.editor.tabspacenumber");
@@ -128,11 +142,6 @@ Settings::Settings(QWidget *parent)
             }
             m_userChangeKey = false;
         }
-    });
-
-    auto showLineNumber = settings->option("base.font.showlinenumber");
-    connect(showLineNumber,&Dtk::Core::DSettingsOption::valueChanged,this,[=] (QVariant value){
-        emit setLineNumberShow(value.toBool());
     });
 }
 
@@ -196,6 +205,7 @@ QPair<QWidget *, QWidget *> Settings::createKeySequenceEditHandle(QObject *obj)
 {
     auto option = qobject_cast<DTK_CORE_NAMESPACE::DSettingsOption *>(obj);
     KeySequenceEdit *shortCutLineEdit = new KeySequenceEdit(option);
+
     shortCutLineEdit->ShortcutDirection(Qt::AlignLeft);
     shortCutLineEdit->setFocusPolicy(Qt::StrongFocus);
     if (option->value().toString().isEmpty()) {
@@ -207,6 +217,9 @@ QPair<QWidget *, QWidget *> Settings::createKeySequenceEditHandle(QObject *obj)
     QPair<QWidget*, QWidget*> optionWidget = DSettingsWidgetFactory::createStandardItem(QByteArray(), option, shortCutLineEdit);
 
     option->connect(shortCutLineEdit, &DKeySequenceEdit::editingFinished, [ = ](const QKeySequence & sequence) {
+
+        if(sequence.toString()== "Enter") qDebug()<<"==========Enter";
+
 
         QString checkName = option->key();
         QString reason;
@@ -239,7 +252,7 @@ QPair<QWidget *, QWidget *> Settings::createKeySequenceEditHandle(QObject *obj)
 
                     if (checkName.contains(keySplitList.last())) {
                         keymap->setValue("customize");
-                        return;
+                        //return;
                     } else {
                         bIsConflicts = true;
                         keySplitList[1] = QString("window_keymap_%1").arg("customize");
@@ -256,7 +269,7 @@ QPair<QWidget *, QWidget *> Settings::createKeySequenceEditHandle(QObject *obj)
 
                     if (checkName.contains(keySplitList.last())) {
                         keymap->setValue("customize");
-                        return;
+                        //return;
                     } else {
                         bIsConflicts = true;
                         keySplitList[1] = QString("editor_keymap_%1").arg("customize");
@@ -276,7 +289,7 @@ QPair<QWidget *, QWidget *> Settings::createKeySequenceEditHandle(QObject *obj)
                 if (option->value().toString() == sequence.toString()) {
 
                     if (checkName.contains(keySplitList.last())) {
-                        return;
+                        //return;
                     } else {
                         bIsConflicts = true;
                         conflictsKeys = keySplitList.join(".");
@@ -291,7 +304,7 @@ QPair<QWidget *, QWidget *> Settings::createKeySequenceEditHandle(QObject *obj)
                 if (option->value().toString() == sequence.toString()) {
 
                     if (checkName.contains(keySplitList.last())) {
-                        return;
+                        //return;
                     } else {
                         bIsConflicts = true;
                         conflictsKeys = keySplitList.join(".");
@@ -309,13 +322,13 @@ QPair<QWidget *, QWidget *> Settings::createKeySequenceEditHandle(QObject *obj)
             qstrSequence.replace(qstrSequence.indexOf("<"),1,"&lt;");
         }
 
-        QString style = QString("<span style=\"color: rgba(255, 87, 54, 1);\">[%1]</span>").arg(qstrSequence);
-
-        if (sequence.toString() == "Alt+M") {
-            bIsConflicts = true;
+        if(sequence.toString().contains("Return")) {
+            qstrSequence.replace(qstrSequence.indexOf("Return"),6,"Enter");
         }
 
-        if (bIsConflicts) {
+        QString style = QString("<span style=\"color: rgba(255, 87, 54, 1);\">[%1]</span>").arg(qstrSequence);
+
+        if (bIsConflicts || sequence.toString() == "Alt+M") {
             if (sequence.toString() == "Alt+M") {
                 instance()->m_pDialog = instance()->createDialog(tr("This shortcut conflicts with system shortcut %1").arg(style),"",bIsConflicts);
             } else {
@@ -434,7 +447,7 @@ bool Settings::checkShortcutValid(const QString &Name,QString Key, QString &Reas
         //F1-F12是允许的，这个正则不够精确，但是没关系。
         QRegExp regexp("^F[0-9]{1,2}$");
         if (!Key.contains(regexp)) {
-            Reason = tr("%1 is invalid").arg(style);
+            Reason = tr("The shortcut %1 is invalid, please set another one.").arg(style);
             bIsConflicts = false;
             return  false;
         }
@@ -442,7 +455,7 @@ bool Settings::checkShortcutValid(const QString &Name,QString Key, QString &Reas
     // 小键盘单键都不允许
     QRegExp regexpNum("^Num+.*");
     if (Key.contains(regexpNum)) {
-        Reason = tr("%1 is invalid").arg(style);
+        Reason = tr("The shortcut %1 is invalid, please set another one.").arg(style);
         bIsConflicts = false;
         return  false;
     }
@@ -480,37 +493,8 @@ DDialog *Settings::createDialog(const QString &title, const QString &content, co
         dialog->addButton(QString(tr("Cancel")), true, DDialog::ButtonNormal);
         dialog->addButton(QString(tr("Replace")), false, DDialog::ButtonRecommend);
     } else {
-        dialog->addButton(QString(tr("Cancel")), true, DDialog::ButtonRecommend);
+        dialog->addButton(QString(tr("OK")), true, DDialog::ButtonRecommend);
     }
 
     return dialog;
-}
-
-void KeySequenceEdit::keyPressEvent(QKeyEvent *e)
-{
-    if (e->key() == Qt::Key_Space) {
-        if (hasFocus()) {
-//           QMouseEvent *pressEvent, *releaseEvent;
-
-//            if (isModified()) {
-//                return DKeySequenceEdit::keyPressEvent(e);
-//            } else {
-//                clear();
-//            }
-//            QTest::mouseClick(this,Qt::LeftButton,Qt::NoModifier,mapToGlobal(this->pos())/*QPoint(,1)*/);
-            qDebug() << mapToGlobal(this->pos());
-
-//            pressEvent = new QMouseEvent(QEvent::MouseButtonPress, QPoint(1, 1), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
-//            releaseEvent = new QMouseEvent(QEvent::MouseButtonRelease, QPoint(1, 1), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
-//            QApplication::sendEvent(this, pressEvent);
-//            QApplication::sendEvent(this, releaseEvent);
-
-            qDebug () << "hasFocus";
-        }
-        //
-    }
-
-//    if (isModified()) {
-        return DKeySequenceEdit::keyPressEvent(e);
-//    }
 }

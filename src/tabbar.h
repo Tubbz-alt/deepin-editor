@@ -22,10 +22,12 @@
 
 #include <DTabBar>
 #include <DMenu>
-#include<QMouseEvent>
+#include <QMouseEvent>
+#include <DScrollBar>
 
 DWIDGET_USE_NAMESPACE
 
+class EditWrapper;
 class Tabbar : public DTabBar
 {
     Q_OBJECT
@@ -55,11 +57,10 @@ public:
     QString fileAt(int index) const;
     QString textAt(int index) const;
 
-    void setTabActiveColor(const QString &color);
+    void setTabPalette(const QString &activeColor, const QString &inactiveColor);
     void setBackground(const QString &startColor, const QString &endColor);
     void setDNDColor(const QString &startColor, const QString &endColor);
     void showTabs();
-
 
 signals:
     void requestHistorySaved(const QString &filePath);
@@ -71,18 +72,21 @@ protected:
     void insertFromMimeDataOnDragEnter(int index, const QMimeData *source);
     void insertFromMimeData(int index, const QMimeData *source);
     bool canInsertFromMimeData(int index, const QMimeData *source) const;
-    void handleDragActionChanged(Qt::DropAction action);
     bool eventFilter(QObject *, QEvent *event);
-protected:
+
+    QSize tabSizeHint(int index) const;
+    QSize minimumTabSizeHint(int index) const;
+    QSize maximumTabSizeHint(int index) const;
     void mousePressEvent(QMouseEvent *e);
+    void dropEvent(QDropEvent *e);
 
 private:
     void handleTabMoved(int fromIndex, int toIndex);
     void handleTabReleased(int index);
     void handleTabIsRemoved(int index);
     void handleTabDroped(int index, Qt::DropAction, QObject *target);
+    void handleDragActionChanged(Qt::DropAction action);
     void onTabDrapStart();
-
 private:
     QStringList m_tabPaths;
     QStringList m_listOldTabPath;
@@ -99,7 +103,12 @@ private:
     DMenu   *m_rightMenu;
     DMenu   *m_moreWaysCloseMenu;
     int m_rightClickTab;
-    bool m_bIsDrapFinish;
+    int m_nDragIndex;
+    QString m_qstrDragName;
+    QString m_qstrDragPath;
+    EditWrapper *m_pWrapper = nullptr;
+public:
+    static QPixmap *sm_pDragPixmap;
 };
 
 #endif

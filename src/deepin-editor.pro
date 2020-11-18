@@ -12,14 +12,13 @@ QT += svg
 QT += widgets
 QT += x11extras
 QT += KCodecs
-QT += testlib
 
 TEMPLATE = app
 TARGET = deepin-editor
 
 CONFIG += link_pkgconfig
 CONFIG += c++11
-PKGCONFIG += xcb xcb-util dtkwidget dtkwm
+PKGCONFIG += xcb xcb-util dtkwidget dtkwm dtkgui dframeworkdbus
 RESOURCES += deepin-editor.qrc
 
 # Input
@@ -50,12 +49,14 @@ HEADERS += window.h \
            thememodule/themelistview.h \
            environments.h \
            fontitemdelegate.h \
-    	   warningnotices.h \
+               warningnotices.h \
     bookmarkwidget.h \
     leftareaoftextedit.h \
     codeflodarea.h \
     showflodcodewidget.h \
-    widgets/keysequenceedit.h
+    widgets/ColorSelectWdg.h \
+    editorapplication.h \
+    encoding.h
 
 SOURCES += window.cpp \
            startmanager.cpp \
@@ -84,13 +85,14 @@ SOURCES += window.cpp \
            thememodule/themelistmodel.cpp \
            thememodule/themelistview.cpp \
            fontitemdelegate.cpp \
-    	   warningnotices.cpp \
+               warningnotices.cpp \
     bookmarkwidget.cpp \
     leftareaoftextedit.cpp \
     codeflodarea.cpp \
     showflodcodewidget.cpp \
-    widgets/keysequenceedit.cpp
-
+    widgets/ColorSelectWdg.cpp \
+    editorapplication.cpp \
+    encoding.cpp
 
 QMAKE_CXXFLAGS += -g
 LIBS += -lX11 -lXext -lXtst
@@ -112,6 +114,13 @@ themes.files += themes/atom_dark.theme
 
 INSTALLS += target desktop themes
 
+QMAKE_CXXFLAGS+= -fPIE
+QMAKE_LFLAGS += -pie
+
 DISTFILES += \
     themes/deepin_dark.theme \
     images/warning.svg
+TRANSLATIONS += ../translations/deepin-editor_zh_CN.ts\
+    ../translations/deepin-editor_zh_HK.ts\
+    ../translations/deepin-editor_zh_TW.ts\
+    ../translations/deepin-editor.ts

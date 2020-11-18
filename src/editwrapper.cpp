@@ -32,6 +32,7 @@
 #include <QDebug>
 #include <QTimer>
 #include <QDir>
+#include <DSettingsOption>
 #include "drecentmanager.h"
 
 DCORE_USE_NAMESPACE
@@ -40,8 +41,8 @@ EditWrapper::EditWrapper(QWidget *parent)
     : QWidget(parent),
       m_layout(new QHBoxLayout),
       m_textEdit(new TextEdit),
-      m_bottomBar(new BottomBar(this)),
       m_textCodec(QTextCodec::codecForName("UTF-8")),
+      m_bottomBar(new BottomBar(this)),
       m_endOfLineMode(eolUnix),
       m_isLoadFinished(true),
       m_isRefreshing(false),
@@ -67,9 +68,9 @@ EditWrapper::EditWrapper(QWidget *parent)
     connect(m_textEdit, &TextEdit::hightlightChanged, this, &EditWrapper::handleHightlightChanged);
     connect(m_textEdit, &TextEdit::textChanged, this, &EditWrapper::slotTextChange);
 
-    connect(m_waringNotices, &WarningNotices::closeButtonClicked, m_waringNotices, &WarningNotices::closeBtnClicked);
+    //connect(m_waringNotices, &WarningNotices::closeButtonClicked, m_waringNotices, &WarningNotices::closeBtnClicked);
     connect(m_waringNotices, &WarningNotices::reloadBtnClicked, this, &EditWrapper::refresh);
-    connect(m_waringNotices, &WarningNotices::closeBtnClicked, this, [=] {
+    connect(m_waringNotices, &WarningNotices::closeButtonClicked, this, [=] {
         QFileInfo fi(filePath());
         m_modified = fi.lastModified();
     });
@@ -83,17 +84,47 @@ EditWrapper::~EditWrapper()
     //delete m_waringNotices;
 }
 
-void EditWrapper::openFile(const QString &filepath)
+
+void EditWrapper::openFile(const QString &filepath, bool bIsTemFile)
 {
+    m_bIsTemFile = bIsTemFile;
     // update file path.
     updatePath(filepath);
-    detectEndOfLine();
+    //detectEndOfLine();
 
     m_textEdit->setIsFileOpen();
     m_isLoadFinished = false;
 
-    // begin to load the file.
     FileLoadThread *thread = new FileLoadThread(filepath);
+
+    QFile file(filepath);
+
+    if (file.open(QIODevice::ReadOnly)) {
+        // reads all remaining data from the file.
+        QByteArray fileContentAll = file.readAll();
+
+        // read the encode.
+        QByteArray encodeArray = "";
+
+        QByteArray encode = encodeArray.fromStdString(thread->getCodec().toStdString());
+
+
+        file.close();
+        if (file.open(QIODevice::ReadOnly)) {
+            QTextStream stream(&fileContentAll);
+            stream.setCodec(encode);
+            QString preconten = stream.read(5000);
+            m_textEdit->setPlainText(preconten);
+
+        }
+
+        file.close();
+    }
+    else {
+        file.close();
+    }
+
+    // begin to load the file.
     connect(thread, &FileLoadThread::loadFinished, this, &EditWrapper::handleFileLoadFinished);
     connect(thread, &FileLoadThread::toTellFileClosed, this, &EditWrapper::onFileClosed);
     connect(thread, &FileLoadThread::finished, thread, &FileLoadThread::deleteLater);
@@ -102,6 +133,7 @@ void EditWrapper::openFile(const QString &filepath)
     QStringList filepathList = textEditor()->readHistoryRecordofFilePath("advance.editor.browsing_encode_history");
     thread->setEncodeInfo(filepathList,encodeList);
 //    // start the thread.
+    QApplication::setOverrideCursor(Qt::WaitCursor);
     thread->start();
 }
 
@@ -220,20 +252,20 @@ bool EditWrapper::saveFile()
     if (m_endOfLineMode == eolUnix) {
         if (!fileContent.endsWith("\n"))
         {
-            fileContent = fileContent.append(QChar('\n'));
+            //fileContent = fileContent.append(QChar('\n'));
         }
     }
     else if (m_endOfLineMode == eolDos)
     {
         if (!fileContent.endsWith("\r\n"))
         {
-            fileContent = fileContent.append(QChar('\r')).append(QChar('\n'));
+            //fileContent = fileContent.append(QChar('\r')).append(QChar('\n'));
         }
     }
     else if (m_endOfLineMode == eolMac) {
         if (!fileContent.endsWith("\r"))
         {
-            fileContent = fileContent.append(QChar('\r'));
+            //fileContent = fileContent.append(QChar('\r'));
         }
     }
 
@@ -278,11 +310,63 @@ bool EditWrapper::saveFile()
     return ok;
 }
 
+bool EditWrapper::saveTemFile(QString qstrDir)
+{
+//    QFileInfo fileInfo(m_textEdit->filepath);
+//    QString path = fileInfo.path();
+//    int lastPath = path.lastIndexOf("/");
+//    QString name = path.right(path.count() - lastPath - 1);
+//    qInfo() << "QFileInfo" << name;
+//    QString qstrFilePath = qstrDir + "/" + name + fileInfo.baseName() + ".deepin-editor_temfile." + fileInfo.suffix();
+    QSaveFile saveFile(qstrDir);
+    saveFile.setDirectWriteFallback(true);
+
+    if (!saveFile.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        return false;        
+    }
+
+    QFile file(qstrDir);
+    if (!file.open(QIODevice::WriteOnly)) {
+        return false;
+    }
+
+    QRegularExpression eolRegex("\r?\n|\r");
+    QString eol = QStringLiteral("\n");
+    if (m_endOfLineMode == eolDos) {
+        eol = QStringLiteral("\r\n");
+    } else if (m_endOfLineMode == eolMac) {
+        eol = QStringLiteral("\r");
+    }
+
+    //auto append new line char to end of file when file's format is Linux/MacOS
+    QString fileContent = m_textEdit->toPlainText();
+
+    QTextStream stream(&file);
+    stream.setCodec(m_textCodec);
+    stream << fileContent.replace(eolRegex, eol);
+
+    //flush stream.
+    stream.flush();
+
+    file.close();
+
+    // flush file.
+    if (!saveFile.flush()) {
+        return false;
+    }
+
+    // ensure that the file is written to disk
+    fsync(saveFile.handle());
+
+    bool ok = (stream.status() == QTextStream::Ok);
+
+    return ok;
+}
+
 void EditWrapper::updatePath(const QString &file)
 {
     QFileInfo fi(file);
     m_modified = fi.lastModified();
-
     m_textEdit->filepath = file;
     detectEndOfLine();
 }
@@ -596,6 +680,7 @@ void EditWrapper::checkForReload()
         m_waringNotices->setSaveAsBtn();
     }
 
+    m_waringNotices->show();
     DMessageManager::instance()->sendMessage(m_textEdit, m_waringNotices);
 }
 
@@ -692,12 +777,68 @@ void EditWrapper::handleFileLoadFinished(const QByteArray &encode,const QString 
 
     // set text.
     m_textEdit->loadHighlighter();
+    m_textEdit->clear();
     m_textEdit->setPlainText(content);
     m_textEdit->setTextFinished();
-//    m_textEdit->clearBlack();
 
+//    m_textEdit->clearBlack();
+    QApplication::restoreOverrideCursor();
     // update status.
-    m_textEdit->setModified(false);
+
+    QStringList temFileList = Settings::instance()->settings->option("advance.editor.browsing_history_temfile")->value().toStringList();
+
+    for (int var = 0; var < temFileList.count(); ++var) {
+        QJsonParseError jsonError;
+        // 转化为 JSON 文档
+        QJsonDocument doucment = QJsonDocument::fromJson(temFileList.value(var).toUtf8(), &jsonError);
+        // 解析未发生错误
+        if (!doucment.isNull() && (jsonError.error == QJsonParseError::NoError))
+        {
+            if (doucment.isObject())
+            {
+                QString temFilePath;
+                QString localPath;
+                // JSON 文档为对象
+                QJsonObject object = doucment.object();  // 转化为对象
+
+                if (object.contains("localPath") || object.contains("temFilePath"))
+                {  // 包含指定的 key
+                    QJsonValue localPathValue = object.value("localPath");  // 获取指定 key 对应的 value
+                    QJsonValue temFilePathValue = object.value("temFilePath");  // 获取指定 key 对应的 value
+
+                    if (localPathValue.toString() == m_textEdit->filepath)
+                    {
+                        QJsonValue value = object.value("cursorPosition");  // 获取指定 key 对应的 value
+
+                        if (value.isString())
+                        {
+                            QTextCursor cursor = m_textEdit->textCursor();
+                            cursor.setPosition(value.toString().toInt());
+                            m_textEdit->setTextCursor(cursor);
+                            break;
+                        }
+                    } else if (temFilePathValue.toString() == m_textEdit->filepath) {
+                        QJsonValue value = object.value("cursorPosition");  // 获取指定 key 对应的 value
+
+                        if (value.isString())
+                        {
+                            QTextCursor cursor = m_textEdit->textCursor();
+                            cursor.setPosition(value.toString().toInt());
+                            m_textEdit->setTextCursor(cursor);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (m_bIsTemFile) {
+        m_bIsTemFile = false;
+        m_textEdit->setModified(true);
+    } else {
+        m_textEdit->setModified(false);
+    }
 //    m_textEdit->moveToStart();
 
     m_bottomBar->setEncodeName(m_textCodec->name());
@@ -721,17 +862,39 @@ void EditWrapper::slotTextChange()
 void EditWrapper::setLineNumberShow(bool bIsShow ,bool bIsFirstShow)
 {
     if(bIsShow && !bIsFirstShow) {
-        int lineNumberAreaWidth = m_textEdit->lineNumberArea->width();
+        int lineNumberAreaWidth = m_textEdit->m_pLeftAreaWidget->m_linenumberarea->width();
         int leftAreaWidth = m_textEdit->m_pLeftAreaWidget->width();
-        m_textEdit->lineNumberArea->show();
+        m_textEdit->m_pLeftAreaWidget->m_linenumberarea->show();
         m_textEdit->m_pLeftAreaWidget->setFixedWidth(leftAreaWidth + lineNumberAreaWidth);
 
     } else if(!bIsShow) {
-        int lineNumberAreaWidth = m_textEdit->lineNumberArea->width();
+        int lineNumberAreaWidth = m_textEdit->m_pLeftAreaWidget->m_linenumberarea->width();
         int leftAreaWidth = m_textEdit->m_pLeftAreaWidget->width();
-        m_textEdit->lineNumberArea->hide();
+        m_textEdit->m_pLeftAreaWidget->m_linenumberarea->hide();
         m_textEdit->m_pLeftAreaWidget->setFixedWidth(leftAreaWidth - lineNumberAreaWidth);
     }
     m_textEdit->bIsSetLineNumberWidth = bIsShow;
     m_textEdit->updateLineNumber();
+}
+
+//显示空白符
+void EditWrapper::setShowBlankCharacter(bool ok)
+{
+    if(ok){
+        QTextOption opts = m_textEdit->document()->defaultTextOption();
+        QTextOption::Flags flag = opts.flags();
+        flag |= QTextOption::ShowTabsAndSpaces;
+//        flag |= QTextOption::ShowLineAndParagraphSeparators;
+//        flag |= QTextOption::AddSpaceForLineAndParagraphSeparators;
+        opts.setFlags(flag);
+        m_textEdit->document()->setDefaultTextOption(opts);
+    }else {
+        QTextOption opts = m_textEdit->document()->defaultTextOption();
+        QTextOption::Flags flag = opts.flags();
+        flag &= ~QTextOption::ShowTabsAndSpaces;
+//        flag &= ~QTextOption::ShowLineAndParagraphSeparators;
+//        flag &= ~QTextOption::AddSpaceForLineAndParagraphSeparators;
+        opts.setFlags(flag);
+        m_textEdit->document()->setDefaultTextOption(opts);
+    }
 }

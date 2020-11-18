@@ -34,8 +34,8 @@ BottomBar::BottomBar(QWidget *parent)
       m_positionLabel(new DLabel),
       m_charCountLabel(new DLabel),
       m_cursorStatus(new DLabel),
-      m_encodeMenu(new DDropdownMenu),
-      m_highlightMenu(new DDropdownMenu),
+      m_encodeMenu(new DDropdownMenu()),
+      m_highlightMenu(new DDropdownMenu()),
       m_rowStr(tr("Row")),
       m_columnStr(tr("Column")),
       m_chrCountStr(tr("Characters %1"))
@@ -49,9 +49,6 @@ BottomBar::BottomBar(QWidget *parent)
     m_encodeMenu->setFont(font);
     m_highlightMenu->setFont(font);
 
-    this->setFocusPolicy(Qt::StrongFocus);      //底部栏增加tab切换焦点
-    m_encodeMenu->setFocusPolicy(Qt::StrongFocus);
-    m_highlightMenu->setFocusPolicy(Qt::StrongFocus);
 
     DFontSizeManager::instance()->bind(m_positionLabel, DFontSizeManager::T9);
     DFontSizeManager::instance()->bind(m_charCountLabel, DFontSizeManager::T9);
@@ -63,7 +60,8 @@ BottomBar::BottomBar(QWidget *parent)
     layout->setContentsMargins(29, 1, 10, 0);
     layout->addWidget(m_positionLabel);
     layout->addStretch();
-    layout->addSpacing(110);
+    //layout->addSpacing(110);
+    layout->addSpacerItem(new QSpacerItem(110,20,QSizePolicy::Expanding,QSizePolicy::Fixed));
     layout->addWidget(m_charCountLabel);
 
     m_cursorStatus->setText(qApp->translate("EditWrapper", "INSERT"));
@@ -88,9 +86,12 @@ BottomBar::BottomBar(QWidget *parent)
     layout->addWidget(pVerticalLine2);
     layout->addWidget(m_highlightMenu);
 
+    m_encodeMenu->setFixedHeight(30);
     setFixedHeight(32);
 
     connect(m_encodeMenu, &DDropdownMenu::currentTextChanged, this, &BottomBar::handleEncodeChanged);
+
+
 }
 
 BottomBar::~BottomBar()
@@ -169,10 +170,19 @@ void BottomBar::updateSize(int size)
     setFixedHeight(size);
 }
 
+void BottomBar::setChildrenFocus(bool ok)
+{
+    m_encodeMenu->setChildrenFocus(ok);
+    m_highlightMenu->setChildrenFocus(ok);
+    if(ok) setTabOrder(m_encodeMenu,m_highlightMenu);
+}
+
+
 void BottomBar::handleEncodeChanged(const QString &name)
 {
     m_wrapper->setTextCodec(name.toLocal8Bit(), true);
     m_wrapper->textEditor()->setTextCode(name.toLocal8Bit());
+    m_wrapper->textEditor()->setFocus();
 }
 
 void BottomBar::paintEvent(QPaintEvent *)

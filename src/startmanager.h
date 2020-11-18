@@ -26,7 +26,13 @@
 #include "window.h"
 #include "editwrapper.h"
 
+#include <com_deepin_dde_daemon_dock.h>
+#include <com_deepin_dde_daemon_dock_entry.h>
 #include <QObject>
+
+using Dock          = com::deepin::dde::daemon::Dock;
+using Entry         = com::deepin::dde::daemon::dock::Entry;
+
 
 class StartManager : public QObject
 {
@@ -43,6 +49,9 @@ class StartManager : public QObject
 public:
     static StartManager* instance();
     StartManager(QObject *parent = 0);
+    bool checkPath(const QString &file);
+//    void setDragEnter(bool bIsDragEnter);
+    bool ifKlu();
 
 public slots:
     Q_SCRIPTABLE void openFilesInTab(QStringList files);
@@ -55,6 +64,7 @@ public slots:
     void initWindowPosition(Window *window, bool alwaysCenter = false);
     void popupExistTabs(FileTabInfo info);
     FileTabInfo getFileTabInfo(QString file);
+//    bool isDragEnter();
 
     void slotCheckUnsaveTab();
 
@@ -65,8 +75,14 @@ private:
     QDBusReply<QDBusUnixFileDescriptor> m_reply;
     QDBusInterface *m_pLoginManager = nullptr;
     QList<QVariant> m_arg;
+//    bool m_bIsDragEnter;
 
     void initBlockShutdown();
+    QDBusPendingReply<QDBusUnixFileDescriptor> m_inhibitReply;
+    QScopedPointer<Dock> m_pDock;
+    QScopedPointer<Entry> m_pEntry;
+    QStringList m_listFilePath;
+    QStringList m_qlistTemFile;
 };
 
 #endif

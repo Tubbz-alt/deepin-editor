@@ -39,8 +39,8 @@ void GenerateSettingTranslate()
     auto shortcuts_window_closeothertabsName = QObject::tr("Close other tabs");
     auto shortcuts_window_restoretabName = QObject::tr("Restore tab");
     auto shortcuts_window_openfileName = QObject::tr("Open file");
-    auto shortcuts_window_incrementfontsizeName = QObject::tr("Increase font size");
-    auto shortcuts_window_decrementfontsizeName = QObject::tr("Decrease font size");
+    auto shortcuts_window_incrementfontsizeName = QObject::tr("Increment font size");
+    auto shortcuts_window_decrementfontsizeName = QObject::tr("Decrement font size");
     auto shortcuts_window_resetfontsizeName = QObject::tr("Reset font size");
     auto shortcuts_window_help = QObject::tr("Help");
     auto shortcuts_window_togglefullscreenName = QObject::tr("Toggle fullscreen");
@@ -111,5 +111,7 @@ void GenerateSettingTranslate()
     auto base_font_wordwrapText = QObject::tr("Word wrap");
     auto base_font_codeflod = QObject::tr("Code folding flag");
     auto base_font_showLineNumber = QObject::tr("Show line numbers");
+    auto base_font_showBookmark = QObject::tr("Show bookmark flag");
+    auto showblankcharacter = QObject::tr("Show whitespaces and tabs");
     auto shortcuts_editor_markName = QObject::tr("Color mark");
 }

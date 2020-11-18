@@ -42,11 +42,13 @@ FindBar::FindBar(QWidget *parent)
     m_editLine = new LineBar();
     m_editLine->lineEdit()->setMinimumHeight(36);
     m_findPrevButton = new QPushButton(tr("Previous"));
-    m_findPrevButton->setFixedSize(80, 36);
+    //m_findPrevButton->setFixedSize(80, 36);
     m_findNextButton = new QPushButton(tr("Next"));
-    m_findNextButton->setFixedSize(80, 36);
+    //m_findNextButton->setFixedSize(80, 36);
     m_closeButton = new DIconButton(DStyle::SP_CloseButton);
     m_closeButton->setIconSize(QSize(30, 30));
+    m_closeButton->setFixedSize(30,30);
+    m_closeButton->setEnabledCircle(true);
     m_closeButton->setFlat(true);
     m_layout->setContentsMargins(16, 4, 11, 4);
 
@@ -69,7 +71,7 @@ FindBar::FindBar(QWidget *parent)
     connect(m_editLine, &LineBar::signal_sentText, this, &FindBar::receiveText, Qt::QueuedConnection);
     connect(m_editLine, &LineBar::contentChanged, this, &FindBar::slot_ifClearSearchWord, Qt::QueuedConnection);
 
-    connect(m_findNextButton, &QPushButton::clicked,  this,&FindBar::handleContentChanged, Qt::QueuedConnection);
+    connect(m_findNextButton, &QPushButton::clicked,  this,&FindBar::findNext, Qt::QueuedConnection);
     connect(m_findPrevButton, &QPushButton::clicked, this, &FindBar::findPreClicked, Qt::QueuedConnection);
     //connect(m_findPrevButton, &QPushButton::clicked, this, &FindBar::findPrev, Qt::QueuedConnection);
 
@@ -130,7 +132,8 @@ void FindBar::slot_ifClearSearchWord()
 
 void FindBar::hideEvent(QHideEvent *)
 {
-    removeSearchKeyword();
+    //保留查询标记
+    //removeSearchKeyword();
 }
 
 bool FindBar::focusNextPrevChild(bool next)
@@ -141,6 +144,11 @@ bool FindBar::focusNextPrevChild(bool next)
 void FindBar::keyPressEvent(QKeyEvent *e)
 {
     const QString &key = Utils::getKeyshortcut(e);
+    if(key=="Esc")
+    {
+        QWidget::hide();
+        emit sigFindbarClose();
+    }
     if(m_closeButton->hasFocus()&&key=="Tab")
     {
         m_editLine->lineEdit()->setFocus();

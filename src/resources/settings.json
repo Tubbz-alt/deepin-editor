@@ -27,7 +27,7 @@
                             "name": "Word Wrap",
                             "type": "checkbox",
                             "text": "Word wrap",
-                            "default": "true"
+                            "default": "false"
                         },
                         {
 
@@ -35,7 +35,7 @@
                             "name":"CODE FLOD",
                             "type":"checkbox",
                             "text":"Code folding flag",
-                            "default":"true"
+                            "default":"false"
                         },
                         {
                             "key": "showlinenumber",
@@ -43,6 +43,20 @@
                             "type": "checkbox",
                             "text": "Show line numbers",
                             "default": "true"
+                        },
+                        {
+                            "key": "showbookmark",
+                            "name": "Show bookmark flag",
+                            "type": "checkbox",
+                            "text": "Show bookmark flag",
+                            "default": "false"
+                        },
+                        {
+                            "key": "showblankcharacter",
+                            "name": "Show whitespaces and tabs",
+                            "type": "checkbox",
+                            "text": "Show whitespaces and tabs",
+                            "default": "false"
                         }
                     ]
                 }
@@ -130,13 +144,13 @@
                         },
                         {
                             "key": "incrementfontsize",
-                            "name": "Increase font size",
+                            "name": "Increment font size",
                             "type": "keySequenceEdit",
                             "default":  "Ctrl+="
                         },
                         {
                             "key": "decrementfontsize",
-                            "name": "Decrease font size",
+                            "name": "Decrement font size",
                             "type": "keySequenceEdit",
                             "default":  "Ctrl+-"
                         },
@@ -2023,6 +2037,18 @@
                         },                       
                         {
                             "key": "browsing_encode_history",
+                            "hide": true,
+                            "reset": false,
+                            "default": ""
+                        },
+                        {
+                            "key": "browsing_history_temfile",
+                            "hide": true,
+                            "reset": false,
+                            "default": ""
+                        },
+                        {
+                            "key": "browsing_history_textcursor",
                             "hide": true,
                             "reset": false,
                             "default": ""

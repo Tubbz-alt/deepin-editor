@@ -50,7 +50,7 @@ JumpLineBar::JumpLineBar(DFloatingWidget *parent)
     this->setLayout(m_layout);
 
     connect(m_editLine, &LineBar::pressEsc, this, &JumpLineBar::jumpCancel, Qt::QueuedConnection);
-    connect(m_editLine, &LineBar::pressEnter, this, &JumpLineBar::jumpConfirm, Qt::QueuedConnection);
+    connect(m_editLine, &LineBar::returnPressed, this, &JumpLineBar::jumpConfirm, Qt::QueuedConnection);
     connect(m_editLine, &LineBar::textChanged, this, &JumpLineBar::handleLineChanged, Qt::QueuedConnection);
     connect(m_editLine, &LineBar::focusOut, this, &JumpLineBar::handleFocusOut, Qt::QueuedConnection);
     connect(m_editLine, &LineBar::focusChanged, this, &JumpLineBar::slotFocusChanged, Qt::QueuedConnection);
@@ -77,6 +77,7 @@ void JumpLineBar::activeInput(QString file, int row, int column, int lineCount, 
     setFixedSize(nJumpLineBarWidth + QString::number(lineCount).size() * fontMetrics().width('9'),nJumpLineBarHeight);
 
     // Clear line number.
+    if(m_editLine->lineEdit()->text().toInt() > lineCount)
     m_editLine->lineEdit()->setText("");
 
     // Show jump line bar.
@@ -111,8 +112,6 @@ void JumpLineBar::jumpCancel()
 
 void JumpLineBar::jumpConfirm()
 {
-    hide();
-
     QString content = m_editLine->lineEdit()->text();
     if (content != "") {
         jumpToLine(m_jumpFile, content.toInt(), true);
